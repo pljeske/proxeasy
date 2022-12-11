@@ -1,0 +1,16 @@
+defaults:
+  csp: 'default-src ''self'' http: https: ws: wss: data: blob: ''unsafe-inline''; script-src ''self'' ''unsafe-eval'' ''unsafe-inline''; frame-ancestors ''self'';'
+  ssl_cert: default-cert.pem
+  ssl_private_key: default-privkey.pem
+  ssl_chain: default-chain.pem
+proxies:
+  - proxy_host: proxy1.example.com
+    proxy_pass: host.docker.internal:8081
+    csp: 'default-src ''self'' http: https: ws: wss: data: blob: ''unsafe-inline''; script-src ''self'' ''unsafe-eval'' ''unsafe-inline''; frame-ancestors ''self'';'
+    ssl_cert: cert.pem
+    ssl_private_key: privkey.pem
+    ssl_chain: chain.pem
+  - proxy_host: proxy2.example.com
+    proxy_pass: host.docker.internal:8082
+  - proxy_host: proxy3.example.com
+    proxy_pass: host.docker.internal:8083

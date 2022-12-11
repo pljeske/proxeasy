@@ -1,0 +1,86 @@
+{%- for proxy in proxies %}
+{%- set proxy_host = proxy.proxy_host | default(defaults.proxy_host, true) %}
+{%- set proxy_pass = proxy.proxy_pass | default(defaults.proxy_pass, true) %}
+{%- set ssl_cert = proxy.ssl_cert | default(defaults.ssl_cert, true) %}
+{%- set ssl_private_key = proxy.ssl_private_key | default(defaults.ssl_private_key, true) %}
+{%- set ssl_chain = proxy.ssl_chain | default(defaults.ssl_chain, true) %}
+{%- set csp = proxy.csp | default(defaults.csp, true) %}
+server {
+    listen                  443 ssl http2;
+    listen                  [::]:443 ssl http2;
+    server_name             {{ proxy_host }};
+
+    # SSL
+    ssl_certificate         certs/{{ ssl_cert }};
+    ssl_certificate_key     certs/{{ ssl_private_key }};
+    ssl_trusted_certificate certs/{{ ssl_chain }};
+
+    # security headers
+    add_header X-XSS-Protection          "1; mode=block" always;
+    add_header X-Content-Type-Options    "nosniff" always;
+    add_header Referrer-Policy           "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy   "{{ csp }}" always;
+#     add_header Content-Security-Policy   "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; frame-ancestors 'self';" always;
+    add_header Permissions-Policy        "interest-cohort=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # logging
+    access_log              /var/log/nginx/{{ proxy_host }}.access.log;
+    error_log               /var/log/nginx/{{ proxy_host }}.error.log warn;
+
+    # reverse proxy
+    location / {
+        proxy_pass http://{{ proxy_pass }};
+
+        proxy_http_version                 1.1;
+        proxy_cache_bypass                 $http_upgrade;
+
+        # Proxy headers
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header Forwarded         $proxy_add_forwarded;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Port  $server_port;
+
+        # Proxy timeouts
+        proxy_connect_timeout              60s;
+        proxy_send_timeout                 60s;
+        proxy_read_timeout                 60s;
+    }
+
+    # additional config
+    # favicon.ico
+    location = /favicon.ico {
+        log_not_found off;
+        access_log    off;
+    }
+
+    # robots.txt
+    location = /robots.txt {
+        log_not_found off;
+        access_log    off;
+    }
+
+    # gzip
+    gzip            on;
+    gzip_vary       on;
+    gzip_proxied    any;
+    gzip_comp_level 6;
+    gzip_types      text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml;
+}
+
+# HTTP redirect
+server {
+    listen      80;
+    listen      [::]:80;
+    server_name {{ proxy_host }};
+
+    location / {
+        return 301 https://{{ proxy_host }}$request_uri;
+    }
+}
+{% endfor %}
